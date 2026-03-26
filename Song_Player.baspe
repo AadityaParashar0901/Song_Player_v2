@@ -131,13 +131,8 @@ Do
         If UI_Elements(UIE_Button_PlayPause).Selected = 0 Then _SndPause CurrentSongHandle Else _SndPlay CurrentSongHandle
     End If
     If UI_Get_Response(UIE_RepeatInfo) Then Repeat = UI_Elements(UIE_RepeatInfo).Selected
-    If UI_Get_Hover(UIE_SongVolumeContainer) Then
-        SetVolume _Clamp(1, GetVolume + UI_MouseWheel, 200)
-        UI_Current_Focus = UIE_SongVolumeContainer
-        If UI_Get_Response(UIE_SongVolumeSlider) Then SetVolume _Clamp(1, UI_Get_Response(UIE_SongVolumeSlider), 200)
-    Else
-        UI_Current_Focus = _IIf(UI_Current_Focus = UIE_SongVolumeContainer, UI_Elements(UIE_SongVolumeContainer).Parent, UI_Current_Focus)
-    End If
+    If UI_Get_Hover(UIE_SongVolumeContainer) Then SetVolume _Clamp(1, GetVolume + UI_MouseWheel, 200)
+    If UI_Get_Response(UIE_SongVolumeSlider) Then SetVolume _Clamp(1, UI_Get_Response(UIE_SongVolumeSlider), 200)
 
     Select Case _KeyHit
         Case 32: If _SndPlaying(CurrentSongHandle) Then _SndPause CurrentSongHandle Else _SndPlay CurrentSongHandle
