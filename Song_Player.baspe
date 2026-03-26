@@ -1,0 +1,394 @@
+$ExeIcon:'.\icon.ico'
+'$Include:'..\UI_Library\UI.bi'
+$Embed:'.\JetBrainsMono-Regular.ttf','FontFile'
+
+Declare Dynamic Library "user32"
+    Function GetKeyState% (ByVal code%)
+End Declare
+
+DefLng A-Z
+MainScreen& = _NewImage(960, 240, 32): Screen MainScreen&: Color -1, 0
+Dim Shared Title$
+_Font _LoadFont(_Embedded$("FontFile"), 16, "MEMORY")
+While _ScreenExists = 0: Wend
+While _Resize: Wend
+_ScreenMove _DesktopWidth - _Width - 20, 10
+Randomize Timer
+
+Dim Shared As Long AccentColor, TextColor
+Dim Shared As Long OldBackgroundColor, NewBackgroundColor, CurrentBackgroundColor
+AccentColor = _RGB32(Rnd * 63, Rnd * 63, Rnd * 63)
+TextColor = _RGB32(255 - _Red32(AccentColor), 255 - _Green32(AccentColor), 255 - _Blue32(AccentColor))
+OldBackgroundColor = _RGB32(Rnd * 63, Rnd * 63, Rnd * 63)
+NewBackgroundColor = _RGB32(Rnd * 63, Rnd * 63, Rnd * 63)
+Default_UI_Element.BorderSize = 0 ' BorderLess
+Default_UI_Element.BColor = 0
+Default_UI_Element.FColor = TextColor
+Default_UI_Element.HoverBColor = &H4FFFFFFF
+Default_UI_Element.HoverFColor = TextColor
+Default_UI_Element.ClickBColor = &H2FFFFFFF
+Default_UI_Element.ClickFColor = TextColor
+Default_UI_Element.BorderColor = TextColor
+
+Dim Shared As String SongFile, PlayLists, PlayListNames
+ReadSongFile
+
+Dim Shared As Integer UIE_PlayList_Tabs(1 To ListStringLength(PlayListNames)), UIE_PlayLists, UIE_SongProgress, UIE_SongLabel, UIE_Button_PlayPause, UIE_SongTime, UIE_SongVolumeContainer, UIE_SongVolumeLabel, UIE_SongVolumeSlider, UIE_RepeatInfo
+
+UIE_PlayLists = UI_Create(UI_TabsGroup, -17, 32, 8, 8, "", PlayListNames)
+UI_Set_Children ListStringNew
+For I = 1 To ListStringLength(PlayListNames)
+    UIE_PlayList_Tabs(I) = UI_Create(UI_TabsPage, -57, -104, 8, 48, ListStringGet(PlayListNames, I), "")
+    ListStringAdd UI_Elements(UIE_PlayLists).Children, _Trim$(Str$(UIE_PlayList_Tabs(I)))
+    UI_Current_Parent = UIE_PlayList_Tabs(I)
+    UI_Elements(UIE_PlayList_Tabs(I)).Children = MKI$(UI_Create(UI_List, -2, -2, 1, 1, "", MapGetKey(ListStringGet(PlayLists, I), "song_names")))
+    UI_Set_Border 0, 0
+    UI_Current_Parent = 0
+Next I
+
+UIE_SongVolumeContainer = UI_Create(UI_Label, 32, -104, -41, 48, "", "")
+UI_Set_Border 1, &H3FFFFFFF
+UI_Elements(UIE_SongVolumeContainer).BorderRadius = 8
+UI_Current_Parent = UIE_SongVolumeContainer
+UIE_SongVolumeLabel = UI_Create(UI_Label, 32, 20, 0, 4, "", "")
+UIE_SongVolumeSlider = UI_Create(UI_Slider, 8, -44, 12, 32, "", ""): UI_Set_Border 0, 0
+UI_Elements(UIE_SongVolumeSlider).RoundedRadius = 2
+'UIE_SongVolumeLabel = UI_Create(UI_Label, 32, 20, -41, 48, "", "")
+'UIE_SongVolumeSlider = UI_Create(UI_Slider, 8, -136, -29, 76, "", ""): UI_Set_Border 0, 0
+UI_Current_Parent = 0
+UI_Elements(UIE_SongVolumeSlider).MaxValue = 200
+UI_Elements(UIE_SongVolumeSlider).Orientation = UI_Orientation_Vertical
+
+UIE_SongProgress = UI_Create(UI_Slider, -185, 8, 8, -44, "", ""): UI_Elements(UIE_SongProgress).ClickFColor = TextColor: UI_Set_Border 0, 0
+UI_Elements(UIE_SongProgress).RoundedRadius = 2
+UIE_SongTime = UI_Create(UI_Label, 160, 20, -169, -28, "Time/Time", "")
+
+UIE_Button_PlayPause = UI_Create(UI_ToggleButton, 64, 20, 8, -28, "", ListStringFromString("Play,Pause"))
+UIE_SongLabel = UI_Create(UI_Label, -233, 20, 72, -28, "", ""): UI_Set_Border 0, 0
+UIE_RepeatInfo = UI_Create(UI_ToggleButton, 160, 20, -169, -50, "", ListStringFromString("No Repeat,Repeat Song,Repeat Playlist"))
+
+Dim Shared As Long CurrentSongHandle
+Dim Shared As _Unsigned Integer CurrentPlayList, CurrentSong
+
+'Load the Last Song
+LoadSong CVL(MapGetKey(SongFile, "current_playlist")), CVL(MapGetKey(SongFile, "current_song"))
+_SndSetPos CurrentSongHandle, CVL(MapGetKey(SongFile, "current_position"))
+
+'Tabs
+ReloadTabs
+ReloadLists
+Dim Shared As _Unsigned _Byte Repeat
+Const Repeat_Song = 1
+Const Repeat_Playlist = 2
+Repeat = Asc(MapGetKey(SongFile, "repeat_mode"))
+
+SlowKeyMapTimer = _FreeTimer
+FastKeyMapTimer = _FreeTimer
+On Timer(SlowKeyMapTimer, 0.2) GoSub SlowKeyMaps
+Timer(SlowKeyMapTimer) On
+On Timer(FastKeyMapTimer, 0.05) GoSub FastKeyMaps
+Timer(FastKeyMapTimer) On
+Dim Shared As _Bit ScreenExists: ScreenExists = -1
+ScreenExistTimer = 600 ' 10 Seconds
+Dim Shared As _Unsigned _Byte TickCounter
+Do
+    If ScreenExists Then
+        ScreenExistTimer = ScreenExistTimer - Sgn(ScreenExistTimer)
+        If ScreenExistTimer = 0 Then ScreenHide
+    Else
+        ScreenExistTimer = 600 ' 10 Seconds
+    End If
+
+    _Limit 60
+
+    ScreenExistTimer = 600 ' 10 Seconds
+    If _Resize Then
+        W = _ResizeWidth
+        H = _ResizeHeight
+        If W > 0 And H > 0 Then
+            TMP& = MainScreen&
+            MainScreen& = _NewImage(W, H, 32)
+            Screen MainScreen&
+            _FreeImage TMP&
+        End If
+    End If
+    CurrentBackgroundColor = InterpolateColor(OldBackgroundColor, NewBackgroundColor, _SndGetPos(CurrentSongHandle) / _SndLen(CurrentSongHandle))
+    Cls , CurrentBackgroundColor
+    UI_MouseWheel = 0: While _MouseInput: UI_MouseWheel = UI_MouseWheel + _MouseWheel: Wend
+
+    UpdateSongInfo
+    If _WindowHasFocus = 0 And (TickCounter Xor 3) Then _Continue
+    UpdateTitle
+    UI_Draw
+
+    For I = 1 To ListStringLength(PlayListNames) ' Load New Song
+        R = UI_Get_Response(CVI(UI_Elements(UIE_PlayList_Tabs(I)).Children))
+        If R Then LoadSong I, R
+    Next I
+
+    If UI_Get_Response(UIE_SongProgress) Then _SndSetPos CurrentSongHandle, UI_Get_Response(UIE_SongProgress)
+    If UI_Get_Response(UIE_Button_PlayPause) Then
+        If UI_Elements(UIE_Button_PlayPause).Selected = 0 Then _SndPause CurrentSongHandle Else _SndPlay CurrentSongHandle
+    End If
+    If UI_Get_Response(UIE_RepeatInfo) Then Repeat = UI_Elements(UIE_RepeatInfo).Selected
+    If UI_Get_Hover(UIE_SongVolumeContainer) Then SetVolume _Clamp(1, GetVolume + UI_MouseWheel, 200)
+    If UI_Get_Response(UIE_SongVolumeSlider) Then SetVolume _Clamp(1, UI_Get_Response(UIE_SongVolumeSlider), 200)
+
+    Select Case _KeyHit
+        Case 32: If _SndPlaying(CurrentSongHandle) Then _SndPause CurrentSongHandle Else _SndPlay CurrentSongHandle
+        Case 72, 104: ScreenHide
+        Case 13: LoadSong CurrentPlayList, UI_Elements(CVI(UI_Elements(UIE_PlayList_Tabs(CurrentPlayList)).Children)).Selected
+        Case 18432
+            CurrentSong = _Max(1, CurrentSong - 1)
+            ReloadLists
+        Case 20480
+            CurrentSong = _Min(CurrentSong + 1, ListStringLength(MapGetKey(ListStringGet(PlayLists, CurrentPlayList), "song_names")))
+            ReloadLists
+        Case 19200
+            CurrentPlayList = ClampCycle(1, CurrentPlayList - 1, ListStringLength(PlayListNames))
+            ReloadTabs
+        Case 19712
+            CurrentPlayList = ClampCycle(1, CurrentPlayList + 1, ListStringLength(PlayListNames))
+            ReloadTabs
+    End Select
+
+    TickCounter = TickCounter + 1
+    _Display
+    If _Exit Then Exit Do
+Loop Until Inp(&H60) = 1
+CloseApp
+
+SlowKeyMaps:
+
+KEY_0 = GetKeyState(96) < 0
+KEY_1 = GetKeyState(97) < 0
+KEY_2 = GetKeyState(98) < 0
+KEY_4 = GetKeyState(100) < 0
+KEY_5 = GetKeyState(101) < 0
+KEY_6 = GetKeyState(102) < 0
+KEY_PLUS = GetKeyState(107) < 0
+KEY__MinUS = GetKeyState(109) < 0
+
+If KEY_2 Then
+    If KEY_0 Then ' Play
+        If _SndPlaying(CurrentSongHandle) = 0 Then _SndPlay CurrentSongHandle
+    Else ' Pause
+        If _SndPlaying(CurrentSongHandle) Then _SndPause CurrentSongHandle
+    End If
+End If
+
+If KEY_0 Then
+    ' Restart Song
+    If KEY_1 Then _SndPlay CurrentSongHandle: _SndPlay CurrentSongHandle
+
+    ' Volume x1
+    If KEY_PLUS Then SetVolume GetVolume + 1
+    If KEY__MinUS Then SetVolume GetVolume - 1
+
+    ' Previous
+    If KEY_4 Then LoadSong CurrentPlayList, CurrentSong - 1
+    ' Next
+    If KEY_5 Then LoadSong CurrentPlayList, CurrentSong + 1
+    ' Repeat Song
+    If KEY_6 Then Repeat = _IIf(Repeat <> Repeat_Song, Repeat_Song, 0): MapSetKey SongFile, "repeat_mode", Chr$(Repeat): ReplyWithBeep Repeat <> 0
+ElseIf KEY_1 Then
+    ' Volume x5
+    If KEY_PLUS Then SetVolume GetVolume + 5
+    If KEY__MinUS Then SetVolume GetVolume - 5
+    ' Repeat Playlist
+    If KEY_6 Then Repeat = _IIf(Repeat <> Repeat_Playlist, Repeat_Playlist, 0): MapSetKey SongFile, "repeat_mode", Chr$(Repeat): ReplyWithBeep Repeat <> 0
+    ' Previous Playlist
+    If KEY_4 Then LoadSong CurrentPlayList - 1, 1
+    ' Next Playlist
+    If KEY_5 Then LoadSong CurrentPlayList + 1, 1
+Else
+    ' Exit
+    If KEY_9 Then CloseApp
+End If
+Return
+
+FastKeyMaps:
+KEY_CTRL = GetKeyState(17) < 0
+KEY_SHIFT = GetKeyState(16) < 0
+KEY_TILDE = GetKeyState(192) < 0
+KEY_H = GetKeyState(72) < 0
+KEY_0 = GetKeyState(96) < 0
+KEY_9 = GetKeyState(105) < 0
+
+' Show
+If KEY_CTRL And KEY_SHIFT And KEY_TILDE Then ScreenShow
+' Hide
+If KEY_H Then ScreenHide
+' Restart App
+If KEY_0 And KEY_9 Then RestartApp
+Return
+
+Sub ScreenShow
+    _ScreenShow: ScreenExists = -1
+    _ScreenMove _DesktopWidth - _Width - 20, 10
+End Sub
+Sub ScreenHide
+    _ScreenHide: ScreenExists = 0
+End Sub
+'$Include:'..\UI_Library\UI.bm'
+'$Include:'include\dsa\map.bas'
+
+Sub Delay (Time~%)
+    For I~% = 1 To Time~%
+        _Limit 100
+    Next I~%
+End Sub
+
+Sub ReplyWithBeep (Truth%%)
+    If Truth%% Then
+        Sound 100, 2
+        Sound 200, 2
+    Else
+        Sound 200, 2
+        Sound 100, 2
+    End If
+End Sub
+
+Sub CloseApp
+    _SndStop CurrentSongHandle
+    _SndClose CurrentSongHandle
+    WriteSongFile
+    System
+End Sub
+Sub RestartApp
+    Shell _Hide "start " + Command$(0) + " " + Command$(1)
+    CloseApp
+End Sub
+
+Function GetVolume&
+    GetVolume = CVI(MapGetKey(SongFile, "volume"))
+End Function
+Sub SetVolume (V&)
+    MapSetKey SongFile, "volume", MKI$(_Clamp(1, V&, 200))
+    _SndVol CurrentSongHandle, GetVolume / 100
+End Sub
+
+Sub LoadSong (PlayListID~&, SongID~&)
+    If CurrentSongHandle Then
+        _SndStop CurrentSongHandle
+        _SndClose CurrentSongHandle
+    End If
+
+    If SongID~& = 0 Then PlayListID~& = PlayListID~& - 1
+    If SongID~& > ListStringLength(MapGetKey(ListStringGet(PlayLists, PlayListID~&), "song_names")) Then PlayListID~& = PlayListID~& + 1: SongID~& = 1
+    PlayListID~& = ClampCycle(1, PlayListID~&, ListStringLength(PlayListNames))
+    SongID~& = ClampCycle(1, SongID~&, ListStringLength(MapGetKey(ListStringGet(PlayLists, PlayListID~&), "song_names")))
+
+    CurrentSongHandle = _SndOpen(ListStringGet(MapGetKey(ListStringGet(PlayLists, PlayListID~&), "song_paths"), SongID~&))
+    _SndVol CurrentSongHandle, GetVolume / 100
+    UI_Elements(UIE_SongProgress).MaxValue = _SndLen(CurrentSongHandle)
+    UI_Elements(UIE_SongLabel).Title = ListStringGet(MapGetKey(ListStringGet(PlayLists, PlayListID~&), "song_names"), SongID~&)
+    _SndPlay CurrentSongHandle
+    MapSetKey SongFile, "current_playlist", MKL$(PlayListID~&)
+    MapSetKey SongFile, "current_song", MKL$(SongID~&)
+    CurrentPlayList = PlayListID~&
+    CurrentSong = SongID~&
+    Title$ = UI_Elements(UIE_SongLabel).Title
+    UpdateTitle
+    ReloadTabs
+    ReloadLists
+    ReloadBackgroundColor
+    _Display
+End Sub
+Sub LoadNextSong
+    If Repeat = Repeat_Song Then
+        _SndPlay CurrentSongHandle
+        ReloadBackgroundColor
+    ElseIf Repeat = Repeat_Playlist Then
+        LoadSong CurrentPlayList, (CurrentSong Mod ListStringLength(MapGetKey(ListStringGet(PlayLists, CurrentPlayList), "song_names"))) + 1
+    Else
+        LoadSong CurrentPlayList, CurrentSong + 1
+    End If
+End Sub
+Sub UpdateSongInfo
+    UI_Elements(UIE_SongProgress).Value = _SndGetPos(CurrentSongHandle)
+    MapSetKey SongFile, "current_position", MKL$(_SndGetPos(CurrentSongHandle))
+    UI_Elements(UIE_SongVolumeLabel).Title = _Trim$(Str$(GetVolume))
+    UI_Elements(UIE_SongVolumeSlider).Value = GetVolume
+    UI_Elements(UIE_SongTime).Title = PrintTime(Int(UI_Elements(UIE_SongProgress).Value)) + "/" + PrintTime(Int(UI_Elements(UIE_SongProgress).MaxValue))
+    If _SndPlaying(CurrentSongHandle) Then
+        UI_Elements(UIE_Button_PlayPause).Selected = 1
+    Else
+        UI_Elements(UIE_Button_PlayPause).Selected = 0
+        If _SndGetPos(CurrentSongHandle) >= _SndLen(CurrentSongHandle) Then LoadNextSong
+    End If
+    UI_Elements(UIE_RepeatInfo).Selected = _IIf(Repeat = Repeat_Playlist, 2, _IIf(Repeat = Repeat_Song, 1, 0))
+End Sub
+
+Sub ReloadTabs
+    UI_Elements(Val(ListStringGet(UI_Elements(UIE_PlayLists).Children, CurrentPlayList))).Visible = -1
+    UI_Elements(UIE_PlayLists).Selected = CurrentPlayList - 1
+    For I = 1 To ListStringLength(PlayListNames)
+        UI_Elements(UIE_PlayList_Tabs(I)).Visible = CurrentPlayList = I
+    Next I
+End Sub
+Sub ReloadLists
+    UI_Elements(CVI(UI_Elements(UIE_PlayList_Tabs(CurrentPlayList)).Children)).Selected = CurrentSong
+    UI_Elements(CVI(UI_Elements(UIE_PlayList_Tabs(CurrentPlayList)).Children)).ScrollOffset = _Max(CurrentSong - 3, 1)
+End Sub
+Sub ReloadBackgroundColor
+    OldBackgroundColor = CurrentBackgroundColor
+    NewBackgroundColor = _RGB32(Rnd * 63, Rnd * 63, Rnd * 63)
+End Sub
+
+Sub UpdateTitle Static
+    Static LastTime!, CurrentTitle$, __V$
+    Static VolumeChanged~%%
+    VolumeChanged~%% = GetVolumeChange
+    If VolumeChanged~%% = 0 And Timer(0.1) - LastTime! < 0.1 Then Exit Sub
+    If VolumeChanged~%% Then __V$ = _Trim$(Str$(GetVolume)) + "%"
+    If _SndPlaying(CurrentSongHandle) Then
+        CurrentTitle$ = Title$
+        If VolumeChanged~%% Then CurrentTitle$ = __V$
+    Else
+        CurrentTitle$ = "Paused - " + Title$
+        If VolumeChanged~%% Then CurrentTitle$ = "Paused - " + __V$
+    End If
+    _Title CurrentTitle$
+    LastTime! = Timer(0.1)
+End Sub
+Function GetVolumeChange~%% Static
+    Static LastVolumeChangeTime As _Unsigned Long
+    Static As _Unsigned _Byte LastVolume, CurrentVolume
+    CurrentVolume = GetVolume
+    If CurrentVolume <> LastVolume Then
+        LastVolume = CurrentVolume
+        LastVolumeChangeTime = 0
+    Else
+        LastVolumeChangeTime = LastVolumeChangeTime + 1
+    End If
+    GetVolumeChange = LastVolumeChangeTime < 60
+End Function
+
+Sub ReadSongFile
+    If _FileExists(Command$) Then IFile$ = Command$ Else IFile$ = "Song_Player.dat"
+    If _FileExists(IFile$) = 0 Then System
+    Open IFile$ For Binary As #1
+    SongFile = String$(LOF(1), 0)
+    Get #1, , SongFile
+    Close #1
+    SongFile = _Inflate$(SongFile)
+    PlayLists = MapGetKey(SongFile, "playlists")
+    PlayListNames = ListStringNew
+    For I = 1 To ListStringLength(PlayLists)
+        ListStringAdd PlayListNames, MapGetKey(ListStringGet(PlayLists, I), "name")
+    Next I
+    Repeat = Asc(MapGetKey(SongFile, "repeat_mode"))
+End Sub
+Sub WriteSongFile
+    SongFile = _Deflate$(SongFile)
+    If _FileExists(Command$) Then IFile$ = Command$ Else IFile$ = "Song_Player.dat"
+    Open IFile$ For Output As #1
+    Print #1, SongFile;
+    Close #1
+End Sub
+'$Include:'include\printtime.bm'
+Function InterpolateColor& (__A&, __B&, __C!)
+    __R~%% = _Red32(__A&): __G~%% = _Green32(__A&): __B~%% = _Blue32(__A&): __A~%% = _Alpha32(__A&)
+    InterpolateColor& = _RGBA32(__R~%% + __C! * (_Red32(__B&) - __R~%%), __G~%% + __C! * (_Green32(__B&) - __G~%%), __B~%% + __C! * (_Blue32(__B&) - __B~%%), __A~%% + __C! * (_Alpha32(__B&) - __A~%%))
+End Function

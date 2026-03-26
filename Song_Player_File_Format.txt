@@ -1,0 +1,14 @@
+Map (Deflate) {
+	"current_playlist": (MKL) of Current PlayList ID;
+	"current_song": (MKL) of Current Song ID, wrt. PlayList;
+	"current_position": (MKL) of Current Position of Song;
+	"volume": (MKI) of Volume of Current Song;
+	"playlists": ListString [
+		Map {
+			"name": Name of PlayList;
+			"song_names": ListString of Song Names;
+			"song_paths": ListString of Song Paths;
+			"song_times": String(MKL-List) of Song Repeat Times;
+		}
+	]
+}
