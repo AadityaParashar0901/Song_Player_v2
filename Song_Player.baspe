@@ -1,5 +1,5 @@
 $ExeIcon:'.\icon.ico'
-'$Include:'..\UI_Library\UI.bi'
+'$Include:'.\UI\UI.bi'
 $Embed:'.\JetBrainsMono-Regular.ttf','FontFile'
 
 Declare Dynamic Library "user32"
@@ -24,9 +24,9 @@ NewBackgroundColor = _RGB32(Rnd * 63, Rnd * 63, Rnd * 63)
 Default_UI_Element.BorderSize = 0 ' BorderLess
 Default_UI_Element.BColor = 0
 Default_UI_Element.FColor = TextColor
-Default_UI_Element.HoverBColor = &H4FFFFFFF
+Default_UI_Element.HoverBColor = &H3FFFFFFF
 Default_UI_Element.HoverFColor = TextColor
-Default_UI_Element.ClickBColor = &H2FFFFFFF
+Default_UI_Element.ClickBColor = &H1FFFFFFF
 Default_UI_Element.ClickFColor = TextColor
 Default_UI_Element.BorderColor = TextColor
 
@@ -131,8 +131,13 @@ Do
         If UI_Elements(UIE_Button_PlayPause).Selected = 0 Then _SndPause CurrentSongHandle Else _SndPlay CurrentSongHandle
     End If
     If UI_Get_Response(UIE_RepeatInfo) Then Repeat = UI_Elements(UIE_RepeatInfo).Selected
-    If UI_Get_Hover(UIE_SongVolumeContainer) Then SetVolume _Clamp(1, GetVolume + UI_MouseWheel, 200)
-    If UI_Get_Response(UIE_SongVolumeSlider) Then SetVolume _Clamp(1, UI_Get_Response(UIE_SongVolumeSlider), 200)
+    If UI_Get_Hover(UIE_SongVolumeContainer) Then
+        SetVolume _Clamp(1, GetVolume + UI_MouseWheel, 200)
+        UI_Current_Focus = UIE_SongVolumeContainer
+        If UI_Get_Response(UIE_SongVolumeSlider) Then SetVolume _Clamp(1, UI_Get_Response(UIE_SongVolumeSlider), 200)
+    Else
+        UI_Current_Focus = _IIf(UI_Current_Focus = UIE_SongVolumeContainer, UI_Elements(UIE_SongVolumeContainer).Parent, UI_Current_Focus)
+    End If
 
     Select Case _KeyHit
         Case 32: If _SndPlaying(CurrentSongHandle) Then _SndPause CurrentSongHandle Else _SndPlay CurrentSongHandle
@@ -230,8 +235,8 @@ End Sub
 Sub ScreenHide
     _ScreenHide: ScreenExists = 0
 End Sub
-'$Include:'..\UI_Library\UI.bm'
-'$Include:'include\dsa\map.bas'
+'$Include:'.\UI\UI.bm'
+'$Include:'libs\Map.bas'
 
 Sub Delay (Time~%)
     For I~% = 1 To Time~%
@@ -387,7 +392,7 @@ Sub WriteSongFile
     Print #1, SongFile;
     Close #1
 End Sub
-'$Include:'include\printtime.bm'
+'$Include:'libs\printtime.bm'
 Function InterpolateColor& (__A&, __B&, __C!)
     __R~%% = _Red32(__A&): __G~%% = _Green32(__A&): __B~%% = _Blue32(__A&): __A~%% = _Alpha32(__A&)
     InterpolateColor& = _RGBA32(__R~%% + __C! * (_Red32(__B&) - __R~%%), __G~%% + __C! * (_Green32(__B&) - __G~%%), __B~%% + __C! * (_Blue32(__B&) - __B~%%), __A~%% + __C! * (_Alpha32(__B&) - __A~%%))

@@ -1,0 +1,12 @@
+Function PrintTime$ (__T As Single)
+    If __T = 0 Then PrintTime$ = "0": Exit Function
+    __H = __T \ 3600
+    __M = (__T Mod 3600) \ 60
+    __S = __T Mod 60
+    If __H Then T$ = _Trim$(Str$(__H)) + "h "
+    If __H Or __M Then T$ = T$ + _Trim$(Str$(__M)) + "m "
+    __dT = __T - Int(__T)
+    __dT = Int(100 * __dT) / 100
+    If __dT > 0 Then D$ = _Trim$(Str$(__dT)) Else D$ = ""
+    PrintTime$ = T$ + _Trim$(Str$(__S)) + D$ + "s"
+End Function
