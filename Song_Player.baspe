@@ -134,15 +134,16 @@ Do
     If UI_Get_Hover(UIE_SongVolumeContainer) Then SetVolume _Clamp(1, GetVolume + UI_MouseWheel, 200)
     If UI_Get_Response(UIE_SongVolumeSlider) Then SetVolume _Clamp(1, UI_Get_Response(UIE_SongVolumeSlider), 200)
 
+    TotalSongsInPlayList = ListStringLength(MapGetKey(ListStringGet(PlayLists, CurrentPlayList), "song_names"))
     Select Case _KeyHit
         Case 32: If _SndPlaying(CurrentSongHandle) Then _SndPause CurrentSongHandle Else _SndPlay CurrentSongHandle
         Case 72, 104: ScreenHide
-        Case 13: LoadSong CurrentPlayList, UI_Elements(CVI(UI_Elements(UIE_PlayList_Tabs(CurrentPlayList)).Children)).Selected
+        Case 13: LoadSong CurrentPlayList, UI_Elements(CVI(UI_Elements(UIE_PlayList_Tabs(CurrentPlayList)).Children)).Highlighted
         Case 18432
-            CurrentSong = _Max(1, CurrentSong - 1)
+            UI_Elements(CVI(UI_Elements(UIE_PlayList_Tabs(CurrentPlayList)).Children)).Highlighted = ClampCycle(1, UI_Elements(CVI(UI_Elements(UIE_PlayList_Tabs(CurrentPlayList)).Children)).Highlighted - 1, TotalSongsInPlayList)
             ReloadLists
         Case 20480
-            CurrentSong = _Min(CurrentSong + 1, ListStringLength(MapGetKey(ListStringGet(PlayLists, CurrentPlayList), "song_names")))
+            UI_Elements(CVI(UI_Elements(UIE_PlayList_Tabs(CurrentPlayList)).Children)).Highlighted = ClampCycle(1, UI_Elements(CVI(UI_Elements(UIE_PlayList_Tabs(CurrentPlayList)).Children)).Highlighted + 1, TotalSongsInPlayList)
             ReloadLists
         Case 19200
             CurrentPlayList = ClampCycle(1, CurrentPlayList - 1, ListStringLength(PlayListNames))
@@ -167,7 +168,7 @@ KEY_4 = GetKeyState(100) < 0
 KEY_5 = GetKeyState(101) < 0
 KEY_6 = GetKeyState(102) < 0
 KEY_PLUS = GetKeyState(107) < 0
-KEY__MinUS = GetKeyState(109) < 0
+KEY_MINUS = GetKeyState(109) < 0
 
 If KEY_2 Then
     If KEY_0 Then ' Play
@@ -183,7 +184,7 @@ If KEY_0 Then
 
     ' Volume x1
     If KEY_PLUS Then SetVolume GetVolume + 1
-    If KEY__MinUS Then SetVolume GetVolume - 1
+    If KEY_MINUS Then SetVolume GetVolume - 1
 
     ' Previous
     If KEY_4 Then LoadSong CurrentPlayList, CurrentSong - 1
@@ -194,7 +195,7 @@ If KEY_0 Then
 ElseIf KEY_1 Then
     ' Volume x5
     If KEY_PLUS Then SetVolume GetVolume + 5
-    If KEY__MinUS Then SetVolume GetVolume - 5
+    If KEY_MINUS Then SetVolume GetVolume - 5
     ' Repeat Playlist
     If KEY_6 Then Repeat = _IIf(Repeat <> Repeat_Playlist, Repeat_Playlist, 0): MapSetKey SongFile, "repeat_mode", Chr$(Repeat): ReplyWithBeep Repeat <> 0
     ' Previous Playlist
@@ -288,6 +289,7 @@ Sub LoadSong (PlayListID~&, SongID~&)
     MapSetKey SongFile, "current_song", MKL$(SongID~&)
     CurrentPlayList = PlayListID~&
     CurrentSong = SongID~&
+    UI_Elements(CVI(UI_Elements(UIE_PlayList_Tabs(CurrentPlayList)).Children)).Highlighted = CurrentSong
     Title$ = UI_Elements(UIE_SongLabel).Title
     UpdateTitle
     ReloadTabs
@@ -329,7 +331,8 @@ Sub ReloadTabs
 End Sub
 Sub ReloadLists
     UI_Elements(CVI(UI_Elements(UIE_PlayList_Tabs(CurrentPlayList)).Children)).Selected = CurrentSong
-    UI_Elements(CVI(UI_Elements(UIE_PlayList_Tabs(CurrentPlayList)).Children)).ScrollOffset = _Max(CurrentSong - 3, 1)
+    ListBoxHeight = UI_Elements(CVI(UI_Elements(UIE_PlayList_Tabs(CurrentPlayList)).Children)).__H
+    UI_Elements(CVI(UI_Elements(UIE_PlayList_Tabs(CurrentPlayList)).Children)).ScrollOffset = _Max(UI_Elements(CVI(UI_Elements(UIE_PlayList_Tabs(CurrentPlayList)).Children)).Highlighted - 3, 1)
 End Sub
 Sub ReloadBackgroundColor
     OldBackgroundColor = CurrentBackgroundColor
